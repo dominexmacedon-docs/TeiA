@@ -1,0 +1,45 @@
+name: TeiA VM Build + Test
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Build TeiA VM
+        run: |
+          gcc -std=c99 -Wall -Wextra \
+            *.c \
+            -o teia
+
+      - name: Create hello world program
+        run: |
+          echo 'print "hello world";' > helloworld.teia
+
+      - name: Run program
+        run: |
+          ./teia helloworld.teia > output.txt
+
+      - name: Show output
+        run: |
+          cat output.txt
+
+      - name: Verify output
+        run: |
+          if ! grep -q "hello world" output.txt; then
+            echo "Test failed"
+            exit 1
+          fi
+
+          echo "Test passed"
