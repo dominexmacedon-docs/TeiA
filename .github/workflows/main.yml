@@ -24,10 +24,11 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/munificent/craftinginterpreters.git ci
 
-      - name: Build clox VM
+      - name: Build clox VM (manual gcc compile)
         run: |
-          cd ci/c
-          make
+          gcc -std=c99 -Wall -Wextra \
+            ci/c/*.c \
+            -o clox
 
       - name: Create test program
         run: |
@@ -35,7 +36,7 @@ jobs:
 
       - name: Run clox VM
         run: |
-          ./ci/c/clox test.lox > output.txt
+          ./clox test.lox > output.txt
 
       - name: Verify output
         run: |
