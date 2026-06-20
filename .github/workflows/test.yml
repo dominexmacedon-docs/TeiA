@@ -10,24 +10,24 @@ permissions:
   contents: read
 
 jobs:
-  build-windows:
+  build:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up MinGW
-        uses: egor-tensin/setup-mingw@v2
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
         with:
-          platform: x64
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
 
       - name: Build TeiA.exe
-        shell: bash
+        shell: msys2 {0}
         run: |
-          gcc -std=c99 -O2 -Wall -Wextra \
-            *.c \
-            -o TeiA.exe
+          gcc -std=c99 -O2 -Wall -Wextra *.c -o TeiA.exe
 
       - name: Upload executable
         uses: actions/upload-artifact@v4
