@@ -1,199 +1,99 @@
-//> Scanning on Demand compiler-c
 #include <stdio.h>
-//> Compiling Expressions compiler-include-stdlib
 #include <stdlib.h>
-//< Compiling Expressions compiler-include-stdlib
-//> Local Variables compiler-include-string
 #include <string.h>
-//< Local Variables compiler-include-string
-
 #include "common.h"
 #include "compiler.h"
-//> Garbage Collection compiler-include-memory
 #include "memory.h"
-//< Garbage Collection compiler-include-memory
 #include "scanner.h"
-//> Compiling Expressions include-debug
-
 #ifdef DEBUG_PRINT_CODE
 #include "debug.h"
 #endif
-//< Compiling Expressions include-debug
-//> Compiling Expressions parser
-
 typedef struct {
   Token current;
   Token previous;
-//> had-error-field
   bool hadError;
-//< had-error-field
-//> panic-mode-field
   bool panicMode;
-//< panic-mode-field
 } Parser;
-//> precedence
-
 typedef enum {
   PREC_NONE,
-  PREC_ASSIGNMENT,  // =
-  PREC_OR,          // or
-  PREC_AND,         // and
-  PREC_EQUALITY,    // == !=
-  PREC_COMPARISON,  // < > <= >=
-  PREC_TERM,        // + -
-  PREC_FACTOR,      // * /
-  PREC_UNARY,       // ! -
-  PREC_CALL,        // . ()
+  PREC_ASSIGNMENT,  
+  PREC_OR,          
+  PREC_AND,         
+  PREC_EQUALITY,    
+  PREC_COMPARISON,  
+  PREC_TERM,        
+  PREC_FACTOR,      
+  PREC_UNARY,      
+  PREC_CALL,        
   PREC_PRIMARY
 } Precedence;
-//< precedence
-//> parse-fn-type
-
-//< parse-fn-type
-/* Compiling Expressions parse-fn-type < Global Variables parse-fn-type
-typedef void (*ParseFn)();
-*/
-//> Global Variables parse-fn-type
 typedef void (*ParseFn)(bool canAssign);
-//< Global Variables parse-fn-type
-//> parse-rule
-
 typedef struct {
   ParseFn prefix;
   ParseFn infix;
   Precedence precedence;
 } ParseRule;
-//< parse-rule
-//> Local Variables local-struct
-
 typedef struct {
   Token name;
   int depth;
-//> Closures is-captured-field
   bool isCaptured;
-//< Closures is-captured-field
 } Local;
-//< Local Variables local-struct
-//> Closures upvalue-struct
 typedef struct {
   uint8_t index;
   bool isLocal;
 } Upvalue;
-//< Closures upvalue-struct
-//> Calls and Functions function-type-enum
 typedef enum {
   TYPE_FUNCTION,
-//> Methods and Initializers initializer-type-enum
   TYPE_INITIALIZER,
-//< Methods and Initializers initializer-type-enum
-//> Methods and Initializers method-type-enum
   TYPE_METHOD,
-//< Methods and Initializers method-type-enum
   TYPE_SCRIPT
 } FunctionType;
-//< Calls and Functions function-type-enum
-//> Local Variables compiler-struct
-
-/* Local Variables compiler-struct < Calls and Functions enclosing-field
-typedef struct {
-*/
-//> Calls and Functions enclosing-field
 typedef struct Compiler {
   struct Compiler* enclosing;
-//< Calls and Functions enclosing-field
-//> Calls and Functions function-fields
   ObjFunction* function;
   FunctionType type;
-
-//< Calls and Functions function-fields
   Local locals[UINT8_COUNT];
   int localCount;
-//> Closures upvalues-array
   Upvalue upvalues[UINT8_COUNT];
-//< Closures upvalues-array
   int scopeDepth;
 } Compiler;
-//< Local Variables compiler-struct
-//> Methods and Initializers class-compiler-struct
-
 typedef struct ClassCompiler {
   struct ClassCompiler* enclosing;
-//> Superclasses has-superclass
   bool hasSuperclass;
-//< Superclasses has-superclass
 } ClassCompiler;
-//< Methods and Initializers class-compiler-struct
-
 Parser parser;
-//< Compiling Expressions parser
-//> Local Variables current-compiler
 Compiler* current = NULL;
-//< Local Variables current-compiler
-//> Methods and Initializers current-class
 ClassCompiler* currentClass = NULL;
-//< Methods and Initializers current-class
-//> Compiling Expressions compiling-chunk
-/* Compiling Expressions compiling-chunk < Calls and Functions current-chunk
-Chunk* compilingChunk;
-
-static Chunk* currentChunk() {
-  return compilingChunk;
-}
-*/
-//> Calls and Functions current-chunk
-
 static Chunk* currentChunk() {
   return &current->function->chunk;
 }
-//< Calls and Functions current-chunk
-
-//< Compiling Expressions compiling-chunk
-//> Compiling Expressions error-at
 static void errorAt(Token* token, const char* message) {
-//> check-panic-mode
   if (parser.panicMode) return;
-//< check-panic-mode
-//> set-panic-mode
   parser.panicMode = true;
-//< set-panic-mode
   fprintf(stderr, "[line %d] Error", token->line);
-
   if (token->type == TOKEN_EOF) {
     fprintf(stderr, " at end");
   } else if (token->type == TOKEN_ERROR) {
-    // Nothing.
   } else {
     fprintf(stderr, " at '%.*s'", token->length, token->start);
   }
-
   fprintf(stderr, ": %s\n", message);
   parser.hadError = true;
 }
-//< Compiling Expressions error-at
-//> Compiling Expressions error
 static void error(const char* message) {
   errorAt(&parser.previous, message);
 }
-//< Compiling Expressions error
-//> Compiling Expressions error-at-current
 static void errorAtCurrent(const char* message) {
   errorAt(&parser.current, message);
 }
-//< Compiling Expressions error-at-current
-//> Compiling Expressions advance
-
 static void advance() {
   parser.previous = parser.current;
-
   for (;;) {
     parser.current = scanToken();
     if (parser.current.type != TOKEN_ERROR) break;
-
     errorAtCurrent(parser.current.start);
   }
 }
-//< Compiling Expressions advance
-//> Compiling Expressions consume
 static void consume(TokenType type, const char* message) {
   if (parser.current.type == type) {
     advance();
@@ -202,66 +102,42 @@ static void consume(TokenType type, const char* message) {
 
   errorAtCurrent(message);
 }
-//< Compiling Expressions consume
-//> Global Variables check
 static bool check(TokenType type) {
   return parser.current.type == type;
 }
-//< Global Variables check
-//> Global Variables match
 static bool match(TokenType type) {
   if (!check(type)) return false;
   advance();
   return true;
 }
-//< Global Variables match
-//> Compiling Expressions emit-byte
 static void emitByte(uint8_t byte) {
   writeChunk(currentChunk(), byte, parser.previous.line);
 }
-//< Compiling Expressions emit-byte
-//> Compiling Expressions emit-bytes
 static void emitBytes(uint8_t byte1, uint8_t byte2) {
   emitByte(byte1);
   emitByte(byte2);
 }
-//< Compiling Expressions emit-bytes
-//> Jumping Back and Forth emit-loop
 static void emitLoop(int loopStart) {
   emitByte(OP_LOOP);
-
   int offset = currentChunk()->count - loopStart + 2;
   if (offset > UINT16_MAX) error("Loop body too large.");
-
   emitByte((offset >> 8) & 0xff);
   emitByte(offset & 0xff);
 }
-//< Jumping Back and Forth emit-loop
-//> Jumping Back and Forth emit-jump
 static int emitJump(uint8_t instruction) {
   emitByte(instruction);
   emitByte(0xff);
   emitByte(0xff);
   return currentChunk()->count - 2;
 }
-//< Jumping Back and Forth emit-jump
-//> Compiling Expressions emit-return
 static void emitReturn() {
-/* Calls and Functions return-nil < Methods and Initializers return-this
-  emitByte(OP_NIL);
-*/
-//> Methods and Initializers return-this
   if (current->type == TYPE_INITIALIZER) {
     emitBytes(OP_GET_LOCAL, 0);
   } else {
     emitByte(OP_NIL);
   }
-
-//< Methods and Initializers return-this
   emitByte(OP_RETURN);
 }
-//< Compiling Expressions emit-return
-//> Compiling Expressions make-constant
 static uint8_t makeConstant(Value value) {
   int constant = addConstant(currentChunk(), value);
   if (constant > UINT8_MAX) {
@@ -271,61 +147,32 @@ static uint8_t makeConstant(Value value) {
 
   return (uint8_t)constant;
 }
-//< Compiling Expressions make-constant
-//> Compiling Expressions emit-constant
 static void emitConstant(Value value) {
   emitBytes(OP_CONSTANT, makeConstant(value));
 }
-//< Compiling Expressions emit-constant
-//> Jumping Back and Forth patch-jump
 static void patchJump(int offset) {
-  // -2 to adjust for the bytecode for the jump offset itself.
   int jump = currentChunk()->count - offset - 2;
-
   if (jump > UINT16_MAX) {
     error("Too much code to jump over.");
   }
-
   currentChunk()->code[offset] = (jump >> 8) & 0xff;
   currentChunk()->code[offset + 1] = jump & 0xff;
 }
-//< Jumping Back and Forth patch-jump
-//> Local Variables init-compiler
-/* Local Variables init-compiler < Calls and Functions init-compiler
-static void initCompiler(Compiler* compiler) {
-*/
-//> Calls and Functions init-compiler
 static void initCompiler(Compiler* compiler, FunctionType type) {
-//> store-enclosing
   compiler->enclosing = current;
-//< store-enclosing
   compiler->function = NULL;
   compiler->type = type;
-//< Calls and Functions init-compiler
   compiler->localCount = 0;
   compiler->scopeDepth = 0;
-//> Calls and Functions init-function
   compiler->function = newFunction();
-//< Calls and Functions init-function
   current = compiler;
-//> Calls and Functions init-function-name
   if (type != TYPE_SCRIPT) {
     current->function->name = copyString(parser.previous.start,
                                          parser.previous.length);
   }
-//< Calls and Functions init-function-name
-//> Calls and Functions init-function-slot
-
   Local* local = &current->locals[current->localCount++];
   local->depth = 0;
-//> Closures init-zero-local-is-captured
   local->isCaptured = false;
-//< Closures init-zero-local-is-captured
-/* Calls and Functions init-function-slot < Methods and Initializers slot-zero
-  local->name.start = "";
-  local->name.length = 0;
-*/
-//> Methods and Initializers slot-zero
   if (type != TYPE_FUNCTION) {
     local->name.start = "this";
     local->name.length = 4;
@@ -333,76 +180,36 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
     local->name.start = "";
     local->name.length = 0;
   }
-//< Methods and Initializers slot-zero
-//< Calls and Functions init-function-slot
 }
-//< Local Variables init-compiler
-//> Compiling Expressions end-compiler
-/* Compiling Expressions end-compiler < Calls and Functions end-compiler
-static void endCompiler() {
-*/
-//> Calls and Functions end-compiler
 static ObjFunction* endCompiler() {
-//< Calls and Functions end-compiler
   emitReturn();
-//> Calls and Functions end-function
   ObjFunction* function = current->function;
-
-//< Calls and Functions end-function
-//> dump-chunk
 #ifdef DEBUG_PRINT_CODE
   if (!parser.hadError) {
-/* Compiling Expressions dump-chunk < Calls and Functions disassemble-end
-    disassembleChunk(currentChunk(), "code");
-*/
-//> Calls and Functions disassemble-end
     disassembleChunk(currentChunk(), function->name != NULL
         ? function->name->chars : "<script>");
-//< Calls and Functions disassemble-end
   }
 #endif
-//< dump-chunk
-//> Calls and Functions return-function
-
-//> restore-enclosing
   current = current->enclosing;
-//< restore-enclosing
   return function;
-//< Calls and Functions return-function
 }
-//< Compiling Expressions end-compiler
-//> Local Variables begin-scope
 static void beginScope() {
   current->scopeDepth++;
 }
-//< Local Variables begin-scope
-//> Local Variables end-scope
 static void endScope() {
   current->scopeDepth--;
-//> pop-locals
-
   while (current->localCount > 0 &&
          current->locals[current->localCount - 1].depth >
             current->scopeDepth) {
-/* Local Variables pop-locals < Closures end-scope
-    emitByte(OP_POP);
-*/
-//> Closures end-scope
     if (current->locals[current->localCount - 1].isCaptured) {
       emitByte(OP_CLOSE_UPVALUE);
     } else {
       emitByte(OP_POP);
     }
-//< Closures end-scope
     current->localCount--;
   }
-//< pop-locals
 }
-//< Local Variables end-scope
-//> Compiling Expressions forward-declarations
-
 static void expression();
-//> Global Variables forward-declarations
 static void statement();
 static void declaration();
 //< Global Variables forward-declarations
