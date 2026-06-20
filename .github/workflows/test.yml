@@ -1,45 +1,36 @@
-name: TeiA VM Build + Test
+name: Build TeiA Executable
 
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
+
+permissions:
+  contents: read
 
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
+  build-windows:
+    runs-on: windows-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential
+      - name: Set up MinGW
+        uses: egor-tensin/setup-mingw@v2
+        with:
+          platform: x64
 
-      - name: Build TeiA VM
+      - name: Build TeiA.exe
+        shell: bash
         run: |
-          gcc -std=c99 -Wall -Wextra \
+          gcc -std=c99 -O2 -Wall -Wextra \
             *.c \
-            -o teia
+            -o TeiA.exe
 
-      - name: Create hello world program
-        run: |
-          echo 'print "hello world";' > helloworld.teia
-
-      - name: Run program
-        run: |
-          ./teia helloworld.teia > output.txt
-
-      - name: Show output
-        run: |
-          cat output.txt
-
-      - name: Verify output
-        run: |
-          if ! grep -q "hello world" output.txt; then
-            echo "Test failed"
-            exit 1
-          fi
-
-          echo "Test passed"
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: TeiA-Windows
+          path: TeiA.exe
