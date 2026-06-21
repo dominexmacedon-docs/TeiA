@@ -791,19 +791,19 @@ static void forStatement() {
   consume(TOKEN_LEFT_PAREN, "Expect '(' after repeat.");
 
   if (match(TOKEN_NUMBER)) {
-    int repeatCount = (int)parser.previous.value;
+    // Treat number as expression already handled by number() rule
+    int loopStart = currentChunk()->count;
 
     consume(TOKEN_TIMES, "Expect 'times' after number.");
 
-    int loopStart = currentChunk()->count;
+    int exitJump = emitJump(OP_JUMP_IF_FALSE);
+    emitByte(OP_POP);
 
     statement();
 
-    // simple counted loop: repeat N times
-    emitConstant(NUMBER_VAL(repeatCount - 1));
-    emitConstant(NUMBER_VAL(0));
-
     emitLoop(loopStart);
+
+    patchJump(exitJump);
   }
 
   else if (match(TOKEN_IDENTIFIER)) {
@@ -811,11 +811,12 @@ static void forStatement() {
 
     consume(TOKEN_FROM, "Expect 'from' after identifier.");
 
-    expression(); 
+    expression();
 
-    consume(TOKEN_TO, "Expect 'to' after start value.");
+    consume(TOKEN_TO, "Expect 'to' after start expression.");
 
-    expression(); 
+    expression();
+
     int loopStart = currentChunk()->count;
 
     int exitJump = emitJump(OP_JUMP_IF_FALSE);
@@ -846,7 +847,7 @@ static void forStatement() {
   }
 
   else {
-    error("Invalid repeat syntax. Use: repeat 10 times OR repeat i from 1 to 10.");
+    error("Invalid repeat syntax.");
   }
 
   consume(TOKEN_RIGHT_PAREN, "Expect ')' after repeat clause.");
