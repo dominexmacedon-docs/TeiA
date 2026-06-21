@@ -788,44 +788,50 @@ static void expressionStatement() {
 static void forStatement() {
   beginScope();
 
-  consume(TOKEN_LEFT_PAREN, "Expect '(' after 'repeat'.");
+  consume(TOKEN_LEFT_PAREN, "Expect '(' after repeat.");
 
-  if (match(TOKEN_IDENTIFIER)) {
-    Token name = parser.previous;
-    uint8_t var = parseVariable("loop variable");
+  if (match(TOKEN_NUMBER)) {
+    int repeatCount = (int)parser.previous.value;
 
-    defineVariable(var);
-
-    consume(TOKEN_FROM, "Expect 'from' after loop variable.");
-
-    expression();
-    consume(TOKEN_TO, "Expect 'to' after start expression.");
-
-    expression();
+    consume(TOKEN_TIMES, "Expect 'times' after number.");
 
     int loopStart = currentChunk()->count;
 
-    emitByte(OP_GET_LOCAL);
-    emitByte(var);
+    statement();
 
-    emitByte(OP_CONSTANT);
-    emitByte(1);
+    // simple counted loop: repeat N times
+    emitConstant(NUMBER_VAL(repeatCount - 1));
+    emitConstant(NUMBER_VAL(0));
 
-    emitByte(OP_ADD);
+    emitLoop(loopStart);
+  }
 
-    emitByte(OP_SET_LOCAL);
-    emitByte(var);
+  else if (match(TOKEN_IDENTIFIER)) {
+    Token loopVar = parser.previous;
 
+    consume(TOKEN_FROM, "Expect 'from' after identifier.");
+
+    expression(); 
+
+    consume(TOKEN_TO, "Expect 'to' after start value.");
+
+    expression(); 
+    int loopStart = currentChunk()->count;
+
+    int exitJump = emitJump(OP_JUMP_IF_FALSE);
     emitByte(OP_POP);
 
     statement();
 
     emitLoop(loopStart);
 
-  } else {
-    expression();
+    patchJump(exitJump);
 
-    consume(TOKEN_TIMES, "Expect 'times' after repeat count.");
+    defineVariable(loopVar);
+  }
+
+  else if (match(TOKEN_IF)) {
+    expression();
 
     int loopStart = currentChunk()->count;
 
@@ -837,8 +843,13 @@ static void forStatement() {
     emitLoop(loopStart);
 
     patchJump(exitJump);
-    emitByte(OP_POP);
   }
+
+  else {
+    error("Invalid repeat syntax. Use: repeat 10 times OR repeat i from 1 to 10.");
+  }
+
+  consume(TOKEN_RIGHT_PAREN, "Expect ')' after repeat clause.");
 
   endScope();
 }
