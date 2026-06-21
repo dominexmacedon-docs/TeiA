@@ -791,21 +791,32 @@ static void forStatement() {
   consume(TOKEN_LEFT_PAREN, "Expect '(' after 'repeat'.");
 
   if (match(TOKEN_IDENTIFIER)) {
-    Token loopVar = parser.previous;
+    Token name = parser.previous;
+    uint8_t var = parseVariable("loop variable");
+
+    defineVariable(var);
 
     consume(TOKEN_FROM, "Expect 'from' after loop variable.");
 
     expression();
-    int startIndex = emitJump(OP_CONSTANT);
-
-    consume(TOKEN_TO, "Expect 'to' in range loop.");
+    consume(TOKEN_TO, "Expect 'to' after start expression.");
 
     expression();
-    int endIndex = emitJump(OP_CONSTANT);
 
     int loopStart = currentChunk()->count;
 
-    defineVariable(loopVar);
+    emitByte(OP_GET_LOCAL);
+    emitByte(var);
+
+    emitByte(OP_CONSTANT);
+    emitByte(1);
+
+    emitByte(OP_ADD);
+
+    emitByte(OP_SET_LOCAL);
+    emitByte(var);
+
+    emitByte(OP_POP);
 
     statement();
 
@@ -817,8 +828,8 @@ static void forStatement() {
     consume(TOKEN_TIMES, "Expect 'times' after repeat count.");
 
     int loopStart = currentChunk()->count;
-    int exitJump = emitJump(OP_JUMP_IF_FALSE);
 
+    int exitJump = emitJump(OP_JUMP_IF_FALSE);
     emitByte(OP_POP);
 
     statement();
