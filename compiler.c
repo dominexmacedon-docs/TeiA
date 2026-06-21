@@ -790,67 +790,55 @@ static void forStatement() {
 
   consume(TOKEN_LEFT_PAREN, "Expect '(' after repeat.");
 
-  if (match(TOKEN_NUMBER)) {
-    // Treat number as expression already handled by number() rule
-    int loopStart = currentChunk()->count;
+  if (match(TOKEN_SEMICOLON)) {
+  } else if (match(TOKEN_VAR)) {
+    varDeclaration();
+  } else if (match(TOKEN_IDENTIFIER)) {
+    Token name = parser.previous;
 
-    consume(TOKEN_TIMES, "Expect 'times' after number.");
-
-    int exitJump = emitJump(OP_JUMP_IF_FALSE);
-    emitByte(OP_POP);
-
-    statement();
-
-    emitLoop(loopStart);
-
-    patchJump(exitJump);
+    // treat "repeat i from ..." as normal var declaration start
+    if (match(TOKEN_FROM)) {
+      expression(); 
+      varDeclaration();
+    } else {
+      expressionStatement();
+    }
+  } else {
+    expressionStatement();
   }
 
-  else if (match(TOKEN_IDENTIFIER)) {
-    Token loopVar = parser.previous;
+  int loopStart = currentChunk()->count;
 
-    consume(TOKEN_FROM, "Expect 'from' after identifier.");
+  int exitJump = -1;
+  if (!match(TOKEN_SEMICOLON)) {
+    expression();
+    consume(TOKEN_SEMICOLON, "Expect ';' after loop condition.");
+
+    exitJump = emitJump(OP_JUMP_IF_FALSE);
+    emitByte(OP_POP);
+  }
+
+  if (!match(TOKEN_RIGHT_PAREN)) {
+    int bodyJump = emitJump(OP_JUMP);
+    int incrementStart = currentChunk()->count;
 
     expression();
-
-    consume(TOKEN_TO, "Expect 'to' after start expression.");
-
-    expression();
-
-    int loopStart = currentChunk()->count;
-
-    int exitJump = emitJump(OP_JUMP_IF_FALSE);
     emitByte(OP_POP);
 
-    statement();
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' after repeat clauses.");
 
     emitLoop(loopStart);
-
-    patchJump(exitJump);
-
-    defineVariable(loopVar);
+    loopStart = incrementStart;
+    patchJump(bodyJump);
   }
 
-  else if (match(TOKEN_IF)) {
-    expression();
+  statement();
+  emitLoop(loopStart);
 
-    int loopStart = currentChunk()->count;
-
-    int exitJump = emitJump(OP_JUMP_IF_FALSE);
+  if (exitJump != -1) {
+    patchJump(exitJump);
     emitByte(OP_POP);
-
-    statement();
-
-    emitLoop(loopStart);
-
-    patchJump(exitJump);
   }
-
-  else {
-    error("Invalid repeat syntax.");
-  }
-
-  consume(TOKEN_RIGHT_PAREN, "Expect ')' after repeat clause.");
 
   endScope();
 }
