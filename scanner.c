@@ -136,11 +136,24 @@ static TokenType identifierType() {
       break;
 
     case 't':
-      return checkKeyword(1, 3, "ype", TOKEN_CLASS);
+  if (scanner.current - scanner.start > 1) {
+    switch (scanner.start[1]) {
+      case 'o':
+        return checkKeyword(2, 0, "", TOKEN_TO);
+
+      case 'i':
+        return checkKeyword(2, 3, "mes", TOKEN_TIMES);
+
+      case 'y':
+        return checkKeyword(2, 2, "pe", TOKEN_CLASS);
+    }
+  }
+  break;
 
     case 'u':
       return checkKeyword(1, 4, "ntil", TOKEN_WHILE);
-
+    case 'f':
+      return checkKeyword(1, 3, "rom", TOKEN_FROM);
     case 'v':
       return checkKeyword(1, 3, "oid", TOKEN_NIL);
 
