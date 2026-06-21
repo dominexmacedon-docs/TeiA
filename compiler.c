@@ -787,62 +787,56 @@ static void expressionStatement() {
 }
 static void forStatement() {
   beginScope();
-  consume(TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
-/* Jumping Back and Forth for-statement < Jumping Back and Forth for-initializer
-  consume(TOKEN_SEMICOLON, "Expect ';'.");
-*/
-  if (match(TOKEN_SEMICOLON)) {
-  } else if (match(TOKEN_VAR)) {
-    varDeclaration();
-  } else {
-    expressionStatement();
-  }
 
-  int loopStart = currentChunk()->count;
-/* Jumping Back and Forth for-statement < Jumping Back and Forth for-exit
-  consume(TOKEN_SEMICOLON, "Expect ';'.");
-*/
-  int exitJump = -1;
-  if (!match(TOKEN_SEMICOLON)) {
+  consume(TOKEN_LEFT_PAREN, "Expect '(' after 'repeat'.");
+
+  if (match(TOKEN_IDENTIFIER)) {
+    Token loopVar = parser.previous;
+
+    consume(TOKEN_FROM, "Expect 'from' after loop variable.");
+
     expression();
-    consume(TOKEN_SEMICOLON, "Expect ';' after loop condition.");
+    int startIndex = emitJump(OP_CONSTANT);
 
-    exitJump = emitJump(OP_JUMP_IF_FALSE);
-    emitByte(OP_POP); // Condition.
-  }
+    consume(TOKEN_TO, "Expect 'to' in range loop.");
 
-/* Jumping Back and Forth for-statement < Jumping Back and Forth for-increment
-  consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
-*/
-  if (!match(TOKEN_RIGHT_PAREN)) {
-    int bodyJump = emitJump(OP_JUMP);
-    int incrementStart = currentChunk()->count;
     expression();
-    emitByte(OP_POP);
-    consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
+    int endIndex = emitJump(OP_CONSTANT);
+
+    int loopStart = currentChunk()->count;
+
+    defineVariable(loopVar);
+
+    statement();
 
     emitLoop(loopStart);
-    loopStart = incrementStart;
-    patchJump(bodyJump);
-  }
 
-  statement();
-  emitLoop(loopStart);
+  } else {
+    expression();
 
-  if (exitJump != -1) {
+    consume(TOKEN_TIMES, "Expect 'times' after repeat count.");
+
+    int loopStart = currentChunk()->count;
+    int exitJump = emitJump(OP_JUMP_IF_FALSE);
+
+    emitByte(OP_POP);
+
+    statement();
+
+    emitLoop(loopStart);
+
     patchJump(exitJump);
-    emitByte(OP_POP); // Condition.
+    emitByte(OP_POP);
   }
 
   endScope();
 }
 static void ifStatement() {
-  consume(TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
   expression();
-  consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition."); // [paren]
 
   int thenJump = emitJump(OP_JUMP_IF_FALSE);
   emitByte(OP_POP);
+
   statement();
 
   int elseJump = emitJump(OP_JUMP);
@@ -851,6 +845,7 @@ static void ifStatement() {
   emitByte(OP_POP);
 
   if (match(TOKEN_ELSE)) statement();
+
   patchJump(elseJump);
 }
 static void printStatement() {
@@ -877,13 +872,14 @@ static void returnStatement() {
 }
 static void whileStatement() {
   int loopStart = currentChunk()->count;
-  consume(TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
+
   expression();
-  consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 
   int exitJump = emitJump(OP_JUMP_IF_FALSE);
   emitByte(OP_POP);
+
   statement();
+
   emitLoop(loopStart);
 
   patchJump(exitJump);
